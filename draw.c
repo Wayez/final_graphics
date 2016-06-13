@@ -36,6 +36,376 @@ void add_polygon( struct matrix *polygons,
   add_point(polygons, x2, y2, z2);
 }
 
+
+void scanline_convert(struct matrix *polygons, screen s, color c, float **z_buffer, int i){
+  float x0, y0, z0, x1, y1, z1, x2, y2, z2;
+  float x_b, y_b, z_b, x_m, y_m, z_m, x_top, y_top, z_top;
+  float dx0, dx1, dx2, x0_curr, x1_curr, y_curr;
+  float x_min, x_max, y_min, y_max, z_min, z_max;
+  float dz0, dz1, dz2, z0_curr, z1_curr;
+  x0 = polygons->m[0][i];
+  x1 = polygons->m[0][i+1];
+  x2 = polygons->m[0][i+2];
+  y0 = polygons->m[1][i];
+  y1 = polygons->m[1][i+1];
+  y2 = polygons->m[1][i+2];
+  z0 = polygons->m[2][i];
+  z1 = polygons->m[2][i+1];
+  z2 = polygons->m[2][i+2];
+  
+  int top_vertex = -1;
+  int middle_vertex = -1;
+  int bottom_vertex = -1;
+  
+  if(y0==y1 || y2 == y1){
+    if(y0 == y1 && y0<y2){
+      x_b = x0, y_b = y0, z_b = z0;
+      x_m = x1, y_m = y1, z_m = z1;
+      x_top = x2, y_top = y2, z_top = z1;
+      x0_curr = x_b;
+      x1_curr = x_m;
+      z0_curr = z_b;
+      z1_curr = z_m;
+      y_curr = y_b;
+      dx0 = (x_top-x_b)/(y_top-y_b);
+      dx1 = (x_top - x_m)/(y_top-y_m);
+      dz0 = (z_top-z_b)/(y_top-y_b);
+      dz1 = (z_top-z_m)/(y_top-y_m);
+    }else if(y2 == y1 && y2<y0){
+      x_b = x2, y_b = y2, z_b = z2;
+      x_m = x1, y_m = y1, z_m = z1;
+      x_top = x0, y_top = y0, z_top = z0;
+      x0_curr = x_b;
+      x1_curr = x_m;
+      z0_curr = z_b;
+      z1_curr = z_m;
+      y_curr = y_b;
+      dx0 = (x_top-x_b)/(y_top-y_b);
+      dx1 = (x_top-x_m)/(y_top-y_m);
+      dz0 = (z_top-z_b)/(y_top-y_b);
+      dz1 = (z_top-z_m)/(y_top-y_m);
+    }else if(y2 == y0 && y2 < y1){
+      x_b = x2, y_b = y2, z_b = z2;
+      x_m = x0, y_m = y0, z_m = z0;
+      x_top = x1, y_top = y1, z_top = z1;
+      x0_curr = x_b;
+      x1_curr = x_m;
+      z0_curr = z_b;
+      z1_curr = z_m;
+      y_curr = y_b;
+      dx0 = (x_top - x_b)/(y_top - y_b);
+      dx1 = (x_top - x_m)/(y_top - y_m);
+      dz0 = (z_top-z_b)/(y_top-y_b);
+      dz1 = (z_top-z_m)/(y_top-y_m);
+    }else if(y2 == y0 && y2 > y1){ //top is horizontal
+      x_b = x1, y_b = y1, z_b = z1;
+      x_m = x0, y_m = y0, z_m = z0;
+      x_top = x2, y_top = y2, z_top = z2;
+      x0_curr = x_b;
+      x1_curr = x_b;
+      z0_curr = z_b;
+      z1_curr = z_b;
+      y_curr = y_b;
+      dx0 = (x_top - x_b)/(y_top-y_b);
+      dx1 = (x_m - x_b)/(y_top-y_b);
+      dz0 = (z_top - z_b)/(y_top-y_b);
+      dz1 = (z_m - z_b)/(y_top-y_b);
+    }else if(y2==y1 && y2>y0){
+      x_b = x0, y_b = y0, z_b=z0;
+      x_m = x1, y_m = y1, z_m = z1;
+      x_top = x2, y_top = y2, z_top = z2;
+      x0_curr = x_b;
+      x1_curr = x_b;
+      z0_curr = z_b;
+      z1_curr = z_b;
+      y_curr = y_b;
+      dx0 = (x_top-x_b)/(y_top-y_b);
+      dx1 = (x_m-x_b)/(y_top-y_b);
+      dz0 = (z_top-z_b)/(y_top-y_b);
+      dz1 = (z_m - z_b)/(y_top-y_b);
+    }else if(y0==y1 && y0>y2){
+      x_b=x2, y_b = y2, z_b = z2;
+      x_m = x1, y_m = y1, z_m = z1;
+      x_top = x0, y_top=y0, z_top=z0;
+      x0_curr = x_b;
+      x1_curr = x_b;
+      z0_curr = z_b;
+      z1_curr = z_b;
+      y_curr = y_b;
+      dx0 = (x_top-x_b)/(y_top-y_b);
+      dx1 = (x_m-x_b)/(y_top-y_b);
+      dz0 = (z_top-z_b)/(y_top-y_b);
+      dz1 = (z_m - z_b)/(y_top - y_b);
+    }
+    y_min = y_b;
+    y_max = y_top;
+    if(x_m >= x_b && x_m >= x_top){
+      x_max = x_m;
+      if(x_b < x_top){
+	x_min = x_b;
+      }else{
+	x_min = x_top;
+      }
+    }else if(x_b >= x_m && x_b >= x_top){
+      x_max = x_b;
+      if(x_m < x_top){
+	x_min = x_m;
+      }else{
+	x_min = x_top;
+      }
+    }else{
+      x_max = x_top;
+      if(x_m < x_b){
+	x_min = x_m;
+      }else{
+	x_min = x_b;
+      }
+    }
+    if(z_m >= z_b && z_m >= z_top){
+      z_max = z_m;
+      if(z_b < z_top){
+	z_min = z_b;
+      }else{
+	z_min = z_top;
+      }
+    }else if(z_b >= z_m && z_b >= z_top){
+      z_max = z_b;
+      if(z_m < z_top){
+	z_min = z_m;
+      }else{
+	z_min = z_top;
+      }
+    }else{
+      z_max = z_top;
+      if(z_m < z_b){
+	z_min = z_m;
+      }else{
+	z_min = z_b;
+      }
+    }
+    while(y_curr <= y_top){
+      if(y_curr > y_max){
+	y_curr = y_max;
+      }
+      if(y_curr < y_min){
+	y_curr = y_min;
+      }
+      if(x0_curr > x_max){
+	x0_curr = x_max;
+      }
+      if(x0_curr < x_min){
+	x0_curr = x_min;
+      }
+      if(x1_curr > x_max){
+	x1_curr = x_max;
+      }
+      if(x1_curr < x_min){
+	x1_curr = x_min;
+      }
+      
+      if(z0_curr > z_max){
+	z0_curr = z_max;
+      }
+      if(z0_curr < z_min){
+	z0_curr = z_min;
+      }
+      if(z1_curr > z_max){
+	z1_curr = z_max;
+      }
+      if(z1_curr < z_min){
+	z1_curr = z_min;
+      }
+      color x;
+      x.green = 255;
+      x.blue = 0;
+      x.red = 0;
+      draw_line(x0_curr,y_curr, z0_curr, x1_curr, y_curr,z1_curr, s, c, z_buffer);
+      x0_curr += dx0;
+      x1_curr += dx1;
+      z0_curr += dz0;
+      z1_curr += dz1;
+      y_curr += 1;
+    }
+  }else{
+    if(y2 > y0 && y2 > y1){
+      x_top = x2, y_top = y2, z_top = z2;
+      if(y1 > y0){
+	x_m = x1, y_m = y1, z_m = z1;
+	x_b = x0, y_b = y0, z_b = z0;
+      }else{
+	x_m = x0, y_m = y0, z_m = z0;
+	x_b = x1, y_b = y1, z_b = z1;
+      }
+    }else if(y1 > y2 && y1 > y0){
+      x_top = x1, y_top = y1, z_top = z1;
+      if(y2 > y0){
+	x_m = x2, y_m = y2, z_m = z2;
+	x_b = x0, y_b = y0, z_b = z0;
+      }else{
+	x_m = x0, y_m = y0, z_m = z0;
+	x_b = x2, y_b = y2, z_b = z2;
+      }
+    }else if(y0 > y2 && y0 > y1){
+      x_top = x0, y_top = y0, z_top = z0;
+      if(y2 > y1){
+	x_m = x2, y_m = y2, z_m = z2;
+	x_b = x1, y_b = y1, z_b = z1;
+      }else{
+	x_m = x1, y_m = y1, z_m = z1;
+	x_b = x2, y_b = y2, z_b = z2;
+      }
+    }
+    x0_curr = x_b;
+    x1_curr = x_b;
+    z0_curr = z_b;
+    z1_curr = z_b;
+    y_curr = y_b;
+    dx0 = (x_top-x_b)/(y_top-y_b);
+    dx1 = (x_m - x_b)/(y_m - y_b);
+    dx2 = (x_top - x_m)/(y_top - y_m);
+    dz0 = (z_top-z_b)/(y_top-y_b);
+    dz1 = (z_m - z_b)/(y_m - y_b);
+    dz2 = (z_top - z_m)/(y_top-y_m);
+    printf("dx0 = %f, dx1 = %f, dx2=%f\n", dx0, dx1, dx2);
+    printf("y_curr = %f, y_m = %f, y_top = %f\n", y_curr, y_m, y_top);
+    y_min = y_b;
+    y_max = y_top;
+    if(x_m >= x_b && x_m >= x_top){
+      x_max = x_m;
+      if(x_b < x_top){
+	x_min = x_b;
+      }else{
+	x_min = x_top;
+      }
+    }else if(x_b >= x_m && x_b >= x_top){
+      x_max = x_b;
+      if(x_m < x_top){
+	x_min = x_m;
+      }else{
+	x_min = x_top;
+      }
+    }else{
+      x_max = x_top;
+      if(x_m < x_b){
+	x_min = x_m;
+      }else{
+	x_min = x_b;
+      }
+    }
+    
+    if(z_m >= z_b && z_m >= z_top){
+      z_max = z_m;
+      if(z_b < z_top){
+	z_min = z_b;
+      }else{
+	z_min = z_top;
+      }
+    }else if(z_b >= z_m && z_b >= z_top){
+      z_max = z_b;
+      if(z_m < z_top){
+	z_min = z_m;
+      }else{
+	z_min = z_top;
+      }
+    }else{
+      z_max = z_top;
+      if(z_m < z_b){
+	z_min = z_m;
+      }else{
+	z_min = z_b;
+      }
+    }
+    
+    while(y_curr < y_m){
+      if(y_curr > y_max){
+	y_curr = y_max;
+      }
+      if(y_curr < y_min){
+	y_curr = y_min;
+      }
+      if(x0_curr > x_max){
+	x0_curr = x_max;
+      }
+      if(x0_curr < x_min){
+	x0_curr = x_min;
+      }
+      if(x1_curr > x_max){
+	x1_curr = x_max;
+      }
+      if(x1_curr < x_min){
+	x1_curr = x_min;
+      }
+      
+      if(z0_curr > z_max){
+	z0_curr = z_max;
+      }
+      if(z0_curr < z_min){
+	z0_curr = z_min;
+      }
+      if(z1_curr > z_max){
+	z1_curr = z_max;
+      }
+      if(z1_curr < z_min){
+	z1_curr = z_min;
+      }
+      color x;
+      x.red = 255;
+      x.blue = 0;
+      x.green = 0;
+      draw_line(x0_curr, y_curr,z0_curr, x1_curr,y_curr,z1_curr, s, c, z_buffer);
+      x0_curr +=dx0;
+      x1_curr +=dx1;
+      z0_curr +=dz0;
+      z1_curr +=dz1;
+      y_curr +=1;
+    }
+    printf("y_curr = %f\n", y_curr);
+    while(y_curr <= y_top){
+      if(y_curr > y_max){
+	y_curr = y_max;
+      }
+      if(y_curr < y_min){
+	y_curr = y_min;
+      }
+      if(x0_curr > x_max){
+	x0_curr = x_max;
+      }
+      if(x0_curr < x_min){
+	x0_curr = x_min;
+      }
+      if(x1_curr > x_max){
+	x1_curr = x_max;
+      }
+      if(x1_curr < x_min){
+	x1_curr = x_min;
+      }
+      
+      if(z0_curr > z_max){
+	z0_curr = z_max;
+      }
+      if(z0_curr < z_min){
+	z0_curr = z_min;
+      }
+      if(z1_curr > z_max){
+	z1_curr = z_max;
+      }
+      if(z1_curr < z_min){
+	z1_curr = z_min;
+      }
+      color x;
+      x.red = 0;
+      x.blue = 255;
+      x.green = 0;
+      draw_line(x0_curr,y_curr,z0_curr, x1_curr,y_curr,z1_curr, s, c, z_buffer);
+      x0_curr +=dx0;
+      x1_curr +=dx2;
+      z0_curr +=dz0;
+      z0_curr +=dz2;
+      y_curr +=1;
+    }
+  }
+}
+
 /*======== void draw_polygons() ==========
 Inputs:   struct matrix *polygons
           screen s
@@ -57,7 +427,7 @@ void draw_polygons( struct matrix *polygons, screen s, color c, float **zbuf) {
       x.blue=(x.blue + 15) % 256;
       x.green=(x.green+15)%256;
       x.red=(x.red+15)%256;
-      //scanline_conversion(polygons,s,x,zbuf,i);
+      scanline_conversion(polygons,s,x,zbuf,i);
       /*
       draw_line( polygons->m[0][i],
 		 polygons->m[1][i],
